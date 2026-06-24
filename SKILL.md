@@ -44,17 +44,17 @@ limit: 25, offset: 0, order: oldest
 - ตัด Morning Talk (ไม่นับ)
 - เวลาเป็น UTC → แปลงเป็น Bangkok (+7)
 - เสาร์-อาทิตย์ = ไม่กรอก
+- **วันหยุด (ช่องทึบบนหน้า Timesheet)** = ไม่กรอก — script ตรวจจากหน้าเว็บว่าวันไหนเป็นช่องทึบ (disabled/holiday cell) แล้วข้ามวันนั้น
 
 **Default activity mapping:**
 
 | Meeting pattern | Timesheet activity |
 |---|---|
-| "AI Agent Update" (weekly, by janjirac) | **PRJ26017** |
+| Subject มีคำว่า "AI" (case-insensitive) | **PRJ26017** |
 | "English Training" | **OVH0002** Training/Coaching/Self-Learning |
-| ทุก meeting อื่น | **OVH0003** General Meeting |
 | Morning Talk | **ไม่กรอก** |
 
-**ถ้าเจอ meeting ใหม่ที่ไม่ชัดเจน → ถาม user ว่าใส่ activity ไหน**
+**ทุก meeting อื่นที่ไม่ตรง pattern ข้างบน → ถาม user ว่าใส่ activity ไหน** พร้อมแสดง option ให้เลือก เช่น OVH0003, OVH0002, PRJ26017 หรือพิมพ์เอง
 
 ### Step 4: Show meeting summary & ask for remaining hours
 
@@ -71,8 +71,9 @@ limit: 25, offset: 0, order: oldest
 **ห้ามสมมติว่าเป็น STH0001 เพราะแต่ละคนทำงานต่างกัน**
 
 รอ user ตอบ แล้วคำนวณ:
-- Working days (Mon-Fri): meeting hours + remaining hours = 8h ต่อวัน
+- Working days (Mon-Fri ที่ไม่ใช่วันหยุด): meeting hours + remaining hours = 8h ต่อวัน
 - Weekends = 0
+- วันหยุด (ช่องทึบ) = 0 — ถึงจะเป็นวัน Mon-Fri ก็ไม่กรอก
 
 ### Step 5: Confirm before filling
 
@@ -81,53 +82,55 @@ limit: 25, offset: 0, order: oldest
 - Grand total ต้อง = working days × 8h
 - รอ user confirm ก่อนดำเนินการ
 
-### Step 6: Launch Chrome with CDP
+### Step 5.5: Detect holidays from Timesheet page
 
-**ต้องปิด Chrome ก่อน** แล้วรัน:
+หลัง launch Chrome แล้ว ก่อนกรอก ให้ detect วันหยุด (ช่องทึบ) จากหน้า Timesheet:
+- script จะ detect อัตโนมัติ (disabled/readonly inputs หรือ cell มี background สีเข้ม)
+- วันหยุดที่ตรงกับ Mon-Fri ต้องไม่กรอก (ใส่ 0)
+- ปรับ working days ให้หักวันหยุดออกก่อนคำนวณ remaining hours
 
-```powershell
-# Kill Chrome
-Get-Process -Name "chrome" -ErrorAction SilentlyContinue | Stop-Process -Force -Confirm:$false
-Start-Sleep -Seconds 3
+**หมายเหตุ**: ถ้ารู้วันหยุดล่วงหน้า (เช่น user บอก) ให้หักออกตั้งแต่ Step 4
 
-# Create junction to real Chrome profile (bypass CDP restriction)
-$junctionDir = "$env:TEMP\chrome-junction-profile"
-cmd /c "if exist `"$junctionDir`" rmdir `"$junctionDir`""
-cmd /c "mklink /J `"$junctionDir`" `"$env:LOCALAPPDATA\Google\Chrome\User Data`""
+### Step 6: Fill timesheet via HTTP (fast, ~1s)
 
-# Launch Chrome with CDP
-Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" -ArgumentList "--remote-debugging-port=9222 --user-data-dir=`"$junctionDir`" --profile-directory=Default https://itservicex.chememan.com/Timesheet"
-Start-Sleep -Seconds 8
-```
-
-Verify CDP: `http://localhost:9222/json/version` (ใช้ `System.Net.WebClient`)
-
-### Step 7: Fill timesheet via CDP script
-
-รัน `scripts/fill-timesheet.cjs`:
+**ใช้ `scripts/fill-timesheet-fast.cjs`** — Direct HTTP POST ไม่ต้องเปิด browser:
 
 ```powershell
 $env:TIMESHEET_DATA = '{"STH0001":[0,8,...],"OVH0003":[0,0,1.5,...]}'
 $env:TIMESHEET_USER = "username"
 $env:TIMESHEET_PASS = "password"
-node scripts/fill-timesheet.cjs
+node scripts/fill-timesheet-fast.cjs
 ```
 
 Script จะ:
-1. Connect Chrome via CDP port 9222
-2. Login อัตโนมัติ (username + password)
-3. Navigate to /Timesheet
-4. ตรวจสอบเดือนให้ตรง
-5. เพิ่ม activity ที่ไม่มี (เช่น PRJ26017) จาก empty row dropdown
-6. เคลียร์ค่าเก่า แล้วกรอกใหม่
-7. **input[0] = activity code, input[1..30] = day 1..30** (index 0 ไม่ใช่วันที่!)
-8. Click Save
+1. HTTP login → ได้ session cookie
+2. GET /Timesheet → parse HTML form fields + detect holidays (disabled inputs)
+3. แก้ค่า input fields ตาม TIMESHEET_DATA
+4. POST /Timesheet → save ทีเดียว
+5. GET /Timesheet อีกรอบ → verify ค่าที่กรอก
 
-### Step 8: Verify & cleanup
+**ข้อจำกัด**: ถ้า activity ยังไม่มีบน page ต้องเพิ่มก่อน (ใช้ browser version `fill-timesheet.cjs` ครั้งแรก)
 
-หลัง save:
-- ตรวจสอบค่าที่กรอก (spot check วันทำงาน vs วันหยุด)
-- ลบ junction: `cmd /c "rmdir $env:TEMP\chrome-junction-profile"`
+### Step 7 (Fallback): Browser version via CDP
+
+ใช้ `scripts/fill-timesheet.cjs` เมื่อ:
+- ต้องเพิ่ม activity ใหม่ที่ยังไม่มีบน page
+- HTTP version มีปัญหา
+
+ต้องปิด Chrome ก่อน แล้วเปิดด้วย CDP:
+```powershell
+Get-Process -Name "chrome" -ErrorAction SilentlyContinue | Stop-Process -Force -Confirm:$false
+Start-Sleep -Seconds 3
+$junctionDir = "$env:TEMP\chrome-junction-profile"
+cmd /c "if exist `"$junctionDir`" rmdir `"$junctionDir`""
+cmd /c "mklink /J `"$junctionDir`" `"$env:LOCALAPPDATA\Google\Chrome\User Data`""
+Start-Process "C:\Program Files\Google\Chrome\Application\chrome.exe" -ArgumentList "--remote-debugging-port=9222 --user-data-dir=`"$junctionDir`" --profile-directory=Default https://itservicex.chememan.com/Timesheet"
+Start-Sleep -Seconds 8
+```
+
+### Step 8: Verify
+
+Script verify อัตโนมัติ — อ่านค่าจาก page หลัง save แล้วแสดง spot check
 
 ## Important notes
 

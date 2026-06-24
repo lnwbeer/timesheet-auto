@@ -1,45 +1,39 @@
 # Timesheet Auto-Fill
 
-กรอก Timesheet บน IT Services Extended อัตโนมัติ — ดึง meeting จาก Outlook แล้วกรอกให้ผ่าน Claude Code
+กรอก Timesheet บน IT Services Extended อัตโนมัติ ผ่าน Claude Code
 
-## ทำอะไรได้
-
-- ดึง meeting ทั้งเดือนจาก Outlook calendar
-- Map meeting เข้า activity อัตโนมัติ (AI Agent Update → PRJ26017, English Training → OVH0002, อื่นๆ → OVH0003)
-- ถาม user ว่าชั่วโมงที่เหลือใส่งานอะไร (แต่ละคนต่างกัน)
-- เปิด Chrome → Login → กรอก → Save ให้หมด
-
-## ติดตั้ง (คำสั่งเดียว)
-
-เปิด PowerShell ใน folder โปรเจกต์ที่ใช้ Claude Code แล้วรัน:
+## Install
 
 ```powershell
 irm https://raw.githubusercontent.com/lnwbeer/timesheet-auto/main/install.ps1 | iex
 ```
 
-Script จะ:
-- สร้าง folder `.claude/skills/fill-timesheet/` และ `scripts/`
-- Download `SKILL.md` และ `fill-timesheet.cjs` ไปวางให้
-- ติดตั้ง `@playwright/mcp` (ถ้ายังไม่มี)
+## Prerequisites
 
-## ใช้งาน
+1. **Claude Code** (Desktop, CLI, or Web)
+2. **Microsoft 365 MCP** — connect ใน Claude Code: `/mcp` → claude.ai Microsoft 365
+3. **Node.js** installed
 
-1. เปิด Claude Code
-2. `/mcp` → connect **Microsoft 365** (ครั้งแรกของ session)
-3. พิมพ์ `/fill-timesheet`
+## Usage
 
-Claude จะถาม:
-1. เดือนที่ต้องการกรอก
-2. Username (IT Services Extended)
-3. Password (ไม่เก็บลงไฟล์)
+พิมพ์ใน Claude Code:
 
-จากนั้น:
-- ดึง meeting จาก Outlook
-- แสดง summary → ถามว่าชั่วโมงเหลือใส่ activity อะไร
-- ยืนยันแล้วกรอกให้อัตโนมัติ
+```
+/fill-timesheet
+```
 
-## หมายเหตุ
+Claude จะ:
+1. ถามเดือน, username, password
+2. ดึง meeting จาก Outlook calendar
+3. จัด activity ตาม pattern (AI → PRJ26017, English → OVH0002, อื่นๆ → ถาม user)
+4. ถามว่าชั่วโมงเหลือลง activity ไหน
+5. แสดง summary ให้ยืนยัน
+6. กรอกผ่าน HTTP POST (~1 วินาที)
+7. Verify ค่าที่กรอก
 
-- **ต้องปิด Chrome ก่อนรัน** — script จะเปิด Chrome ใหม่ให้เอง
-- Password ใช้ครั้งเดียวใน memory แล้วทิ้ง ไม่เก็บลงไฟล์
-- รองรับ Windows + Chrome เท่านั้น
+## How it works
+
+- **HTTP POST ตรง** — ไม่ต้องเปิด browser, ไม่ต้องปิด Chrome
+- Login → GET form → modify values → POST save → verify
+- ตรวจวันหยุด (disabled cells) อัตโนมัติ
+- ~1 วินาที ต่อรอบ
