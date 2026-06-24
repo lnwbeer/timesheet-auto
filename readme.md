@@ -9,36 +9,24 @@
 - ถาม user ว่าชั่วโมงที่เหลือใส่งานอะไร (แต่ละคนต่างกัน)
 - เปิด Chrome → Login → กรอก → Save ให้หมด
 
-## ติดตั้ง (ครั้งเดียว)
+## ติดตั้ง (คำสั่งเดียว)
 
-### 1. ติดตั้ง @playwright/mcp
+เปิด PowerShell ใน folder โปรเจกต์ที่ใช้ Claude Code แล้วรัน:
 
-```bash
-npm i -g @playwright/mcp
+```powershell
+irm https://raw.githubusercontent.com/lnwbeer/timesheet-auto/main/install.ps1 | iex
 ```
 
-### 2. วางไฟล์ในโปรเจกต์
-
-Copy 2 ไฟล์จาก repo นี้ไปวางในโปรเจกต์ที่ใช้ Claude Code:
-
-```
-SKILL.md             →  .claude/skills/fill-timesheet/SKILL.md
-fill-timesheet.cjs   →  scripts/fill-timesheet.cjs
-```
-
-### 3. Connect Microsoft 365
-
-เปิด Claude Code แล้วพิมพ์ `/mcp` → เลือก **claude.ai Microsoft 365** → Login
-
-(ต้องทำทุกครั้งที่เปิด session ใหม่)
+Script จะ:
+- สร้าง folder `.claude/skills/fill-timesheet/` และ `scripts/`
+- Download `SKILL.md` และ `fill-timesheet.cjs` ไปวางให้
+- ติดตั้ง `@playwright/mcp` (ถ้ายังไม่มี)
 
 ## ใช้งาน
 
-พิมพ์ใน Claude Code:
-
-```
-/fill-timesheet
-```
+1. เปิด Claude Code
+2. `/mcp` → connect **Microsoft 365** (ครั้งแรกของ session)
+3. พิมพ์ `/fill-timesheet`
 
 Claude จะถาม:
 1. เดือนที่ต้องการกรอก
@@ -54,4 +42,4 @@ Claude จะถาม:
 
 - **ต้องปิด Chrome ก่อนรัน** — script จะเปิด Chrome ใหม่ให้เอง
 - Password ใช้ครั้งเดียวใน memory แล้วทิ้ง ไม่เก็บลงไฟล์
-- รองรับ Windows + Chrome เท่านั้น (ใช้ junction trick สำหรับ CDP)
+- รองรับ Windows + Chrome เท่านั้น
